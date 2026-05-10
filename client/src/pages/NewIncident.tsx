@@ -52,6 +52,8 @@ export function NewIncident() {
         lat: form.lat ? parseFloat(form.lat) : undefined,
         lon: form.lon ? parseFloat(form.lon) : undefined,
         started_at: form.started_at ? new Date(form.started_at).toISOString() : new Date().toISOString(),
+        scene_type: form.scene_type || undefined,
+        product_status: form.product_status || undefined,
       };
       const inc = await createIncident(payload);
       navigate(`/incidents/${inc.id}`);
