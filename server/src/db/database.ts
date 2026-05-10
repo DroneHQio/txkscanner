@@ -1,5 +1,5 @@
-import Database from 'better-sqlite3';
-import { drizzle } from 'drizzle-orm/better-sqlite3';
+import { createClient } from '@libsql/client';
+import { drizzle } from 'drizzle-orm/libsql';
 import * as schema from './schema';
 import path from 'path';
 import fs from 'fs';
@@ -10,26 +10,20 @@ if (!fs.existsSync(dbDir)) {
 }
 
 const dbPath = path.join(dbDir, 'hazmat.db');
-const sqlite = new Database(dbPath);
 
-// Enable WAL mode for better performance
-sqlite.pragma('journal_mode = WAL');
-sqlite.pragma('foreign_keys = ON');
+const client = createClient({ url: `file:${dbPath}` });
+export const db = drizzle(client, { schema });
 
-export const db = drizzle(sqlite, { schema });
-
-// Create tables if they don't exist
-export function initializeDatabase() {
-  sqlite.exec(`
-    CREATE TABLE IF NOT EXISTS users (
+export async function initializeDatabase() {
+  const statements = [
+    `CREATE TABLE IF NOT EXISTS users (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,
       agency TEXT NOT NULL,
       unit TEXT NOT NULL,
       created_at TEXT NOT NULL DEFAULT ''
-    );
-
-    CREATE TABLE IF NOT EXISTS incidents (
+    )`,
+    `CREATE TABLE IF NOT EXISTS incidents (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,
       incident_number TEXT,
@@ -56,9 +50,8 @@ export function initializeDatabase() {
       closed_at TEXT,
       created_at TEXT NOT NULL DEFAULT '',
       updated_at TEXT NOT NULL DEFAULT ''
-    );
-
-    CREATE TABLE IF NOT EXISTS incident_notes (
+    )`,
+    `CREATE TABLE IF NOT EXISTS incident_notes (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       incident_id INTEGER NOT NULL,
       user_id INTEGER,
@@ -69,9 +62,8 @@ export function initializeDatabase() {
       lat REAL,
       lon REAL,
       created_at TEXT NOT NULL DEFAULT ''
-    );
-
-    CREATE TABLE IF NOT EXISTS weather_snapshots (
+    )`,
+    `CREATE TABLE IF NOT EXISTS weather_snapshots (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       incident_id INTEGER NOT NULL,
       temperature REAL,
@@ -83,9 +75,8 @@ export function initializeDatabase() {
       alerts TEXT,
       checked_at TEXT NOT NULL DEFAULT '',
       raw_data TEXT
-    );
-
-    CREATE TABLE IF NOT EXISTS erg_materials (
+    )`,
+    `CREATE TABLE IF NOT EXISTS erg_materials (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       un_number TEXT NOT NULL,
       name TEXT NOT NULL,
@@ -101,25 +92,22 @@ export function initializeDatabase() {
       spill_guidance TEXT,
       first_aid TEXT,
       has_distance_data INTEGER DEFAULT 0
-    );
-
-    CREATE TABLE IF NOT EXISTS erg_distances (
+    )`,
+    `CREATE TABLE IF NOT EXISTS erg_distances (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       material_id INTEGER NOT NULL,
       spill_size TEXT NOT NULL,
       day_night TEXT NOT NULL,
       initial_isolation_meters REAL,
       protective_action_meters REAL
-    );
-
-    CREATE TABLE IF NOT EXISTS checklist_templates (
+    )`,
+    `CREATE TABLE IF NOT EXISTS checklist_templates (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       section TEXT NOT NULL,
       item_text TEXT NOT NULL,
       sort_order INTEGER NOT NULL
-    );
-
-    CREATE TABLE IF NOT EXISTS incident_checklist_items (
+    )`,
+    `CREATE TABLE IF NOT EXISTS incident_checklist_items (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       incident_id INTEGER NOT NULL,
       template_id INTEGER,
@@ -129,9 +117,8 @@ export function initializeDatabase() {
       completed INTEGER DEFAULT 0,
       completed_by TEXT,
       completed_at TEXT
-    );
-
-    CREATE TABLE IF NOT EXISTS exposure_logs (
+    )`,
+    `CREATE TABLE IF NOT EXISTS exposure_logs (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       incident_id INTEGER NOT NULL,
       person_name TEXT NOT NULL,
@@ -151,9 +138,8 @@ export function initializeDatabase() {
       hospital TEXT,
       notes TEXT,
       created_at TEXT NOT NULL DEFAULT ''
-    );
-
-    CREATE TABLE IF NOT EXISTS decon_logs (
+    )`,
+    `CREATE TABLE IF NOT EXISTS decon_logs (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       incident_id INTEGER NOT NULL,
       established_time TEXT,
@@ -169,9 +155,8 @@ export function initializeDatabase() {
       ems_handoff INTEGER DEFAULT 0,
       notes TEXT,
       created_at TEXT NOT NULL DEFAULT ''
-    );
-
-    CREATE TABLE IF NOT EXISTS resources (
+    )`,
+    `CREATE TABLE IF NOT EXISTS resources (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       incident_id INTEGER NOT NULL,
       resource_type TEXT NOT NULL,
@@ -184,9 +169,8 @@ export function initializeDatabase() {
       cleared_time TEXT,
       notes TEXT,
       created_at TEXT NOT NULL DEFAULT ''
-    );
-
-    CREATE TABLE IF NOT EXISTS shipping_papers (
+    )`,
+    `CREATE TABLE IF NOT EXISTS shipping_papers (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       incident_id INTEGER NOT NULL,
       shipping_paper_found INTEGER DEFAULT 0,
@@ -204,9 +188,8 @@ export function initializeDatabase() {
       emergency_contact TEXT,
       notes TEXT,
       created_at TEXT NOT NULL DEFAULT ''
-    );
-
-    CREATE TABLE IF NOT EXISTS map_markers (
+    )`,
+    `CREATE TABLE IF NOT EXISTS map_markers (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       incident_id INTEGER NOT NULL,
       marker_type TEXT NOT NULL,
@@ -214,9 +197,8 @@ export function initializeDatabase() {
       lon REAL NOT NULL,
       label TEXT,
       created_at TEXT NOT NULL DEFAULT ''
-    );
-
-    CREATE TABLE IF NOT EXISTS photos (
+    )`,
+    `CREATE TABLE IF NOT EXISTS photos (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       incident_id INTEGER NOT NULL,
       caption TEXT,
@@ -226,6 +208,10 @@ export function initializeDatabase() {
       uploaded_by TEXT,
       filename TEXT,
       created_at TEXT NOT NULL DEFAULT ''
-    );
-  `);
+    )`,
+  ];
+
+  for (const sql of statements) {
+    await client.execute(sql);
+  }
 }
